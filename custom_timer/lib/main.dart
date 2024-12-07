@@ -26,7 +26,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  List<Map<String, dynamic>> _previousData = [];
+  List<List<String>> _previousData = [];
 
   @override
   void initState() {
@@ -34,40 +34,32 @@ class _MainScreenState extends State<MainScreen> {
     _loadData();
   }
 
+  // Save the data to shared_preferences
   Future<void> _saveData() async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> jsonData = _previousData.map((entry) {
-      return '${entry['timestamp']},${entry['times'].join(',')}';
-    }).toList();
+    // Convert _previousData to JSON string
+    List<String> jsonData =
+    _previousData.map((entry) => entry.join(',')).toList();
     prefs.setStringList('saved_data', jsonData);
   }
 
+  // Load data from shared_preferences
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     List<String>? savedData = prefs.getStringList('saved_data');
     if (savedData != null) {
       setState(() {
-        _previousData = savedData.map((entry) {
-          List<String> parts = entry.split(',');
-          return {
-            'timestamp': parts[0],
-            'times': parts.sublist(1),
-          };
-        }).toList();
+        _previousData = savedData.map((entry) => entry.split(',')).toList();
       });
     }
   }
 
   void _addNewData(List<String> buttonTimes) {
     setState(() {
-      _previousData.add({
-        'timestamp': DateTime.now().toString(),
-        'times': buttonTimes,
-      });
+      _previousData.add(buttonTimes);
     });
-    _saveData();
+    _saveData(); // Save the updated data
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -75,143 +67,48 @@ class _MainScreenState extends State<MainScreen> {
       appBar: AppBar(
         title: Text('Checkpoint Timer'),
         centerTitle: true,
-        elevation: 2,
       ),
-      body: Container(
-        color: Colors.grey[50],
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Card(
-                margin: EdgeInsets.symmetric(vertical: 8),
-                elevation: 2,
-                child: InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => NewDataScreen(onSubmit: _addNewData),
-                      ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.add_circle_outline,
-                            color: Colors.blue[700],
-                            size: 28,
-                          ),
-                        ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Create New Checkpoints',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Record new checkpoint timings',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: Colors.black45,
-                          size: 16,
-                        ),
-                      ],
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Card(
+              margin: EdgeInsets.symmetric(vertical: 10),
+              elevation: 4,
+              child: ListTile(
+                leading: Icon(Icons.add, color: Colors.blue),
+                title: Text('Create New Checkpoints'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          NewDataScreen(onSubmit: _addNewData),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
-              Card(
-                margin: EdgeInsets.symmetric(vertical: 8),
-                elevation: 2,
-                child: InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => PreviousDataScreen(
-                          previousData: _previousData,
-                        ),
+            ),
+            Card(
+              margin: EdgeInsets.symmetric(vertical: 10),
+              elevation: 4,
+              child: ListTile(
+                leading: Icon(Icons.history, color: Colors.green),
+                title: Text('View Previous Checkpoints'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PreviousDataScreen(
+                        previousData: _previousData,
                       ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.history,
-                            color: Colors.green[700],
-                            size: 28,
-                          ),
-                        ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'View Previous Checkpoints',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '${_previousData.length} ${_previousData.length == 1 ? 'session' : 'sessions'} recorded',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: Colors.black45,
-                          size: 16,
-                        ),
-                      ],
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -379,83 +276,37 @@ class _NewDataScreenState extends State<NewDataScreen> {
 }
 
 class PreviousDataScreen extends StatelessWidget {
-  final List<Map<String, dynamic>> previousData;
+  final List<List<String>> previousData;
 
   PreviousDataScreen({required this.previousData});
-
-  String formatDateTime(String timestamp) {
-    final dateTime = DateTime.parse(timestamp);
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Previous Data'),
-        elevation: 2,
-      ),
-      body: Container(
-        color: Colors.grey[50],
-        child: previousData.isEmpty
-            ? Center(
-          child: Text(
-            'No previous data available.',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.black54,
-            ),
-          ),
-        )
-            : ListView.builder(
-          padding: EdgeInsets.all(16.0),
-          itemCount: previousData.length,
-          itemBuilder: (context, index) {
-            final entry = previousData[previousData.length - 1 - index]; // Reverse order to show newest first
-            return Card(
-              margin: EdgeInsets.symmetric(vertical: 4),
-              elevation: 1,
-              child: ListTile(
-                contentPadding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                leading: Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.history,
-                    color: Colors.blue[700],
-                  ),
-                ),
-                title: Text(
-                  formatDateTime(entry['timestamp']),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-                subtitle: Text(
-                  '${entry['times'].length} checkpoints',
-                  style: TextStyle(
-                    color: Colors.black54,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => DetailsScreen(
-                        buttonTimes: List<String>.from(entry['times']),
-                      ),
-                    ),
-                  );
-                },
+      appBar: AppBar(title: Text('Previous Data')),
+      body: previousData.isEmpty
+          ? Center(child: Text('No previous data available.'))
+          : ListView.builder(
+        itemCount: previousData.length,
+        itemBuilder: (context, index) {
+          return Card(
+            margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+            child: ListTile(
+              leading: CircleAvatar(
+                child: Text('${index + 1}'),
               ),
-            );
-          },
-        ),
+              title: Text('Entry ${index + 1}'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DetailsScreen(buttonTimes: previousData[index]),
+                  ),
+                );
+              },
+            ),
+          );
+        },
       ),
     );
   }
