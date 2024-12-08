@@ -261,6 +261,27 @@ class _NewDataScreenState extends State<NewDataScreen> {
   List<String> _buttonTimes = List.filled(15, '');
   ScrollController _scrollController = ScrollController();
 
+  String getButtonName(int index) {
+    switch (index) {
+      case 0: return 'Block Permitted';
+      case 1: return 'T/409';
+      case 2: return 'Dep';
+      case 3: return 'Arr/site';
+      case 4: return 'NP Load';
+      case 5: return 'm/c ReachCut';
+      case 6: return 'Rail last laid';
+      case 7: return 'Rail fish plate';
+      case 8: return 'Old Slp. removed';
+      case 9: return 'm/c backward';
+      case 10: return 'Plough down & NT';
+      case 11: return 'Sled U&H&Locked';
+      case 12: return 'Slp. Laying Start';
+      case 13: return 'Last Slp. Dropped';
+      case 14: return 'Work close';
+      default: return '';
+    }
+  }
+
   String formatTime(String time) {
     if (time.isEmpty) return '00:00:00';
     try {
@@ -326,53 +347,84 @@ class _NewDataScreenState extends State<NewDataScreen> {
           children: [
             // Left side - Recorded Times
             Expanded(
-              flex: 2,
-              child: Card(
-                margin: EdgeInsets.all(8),
-                elevation: 2,
-                child: ListView.builder(
-                  controller: _scrollController,
-                  itemCount: _buttonTimes.where((time) => time.isNotEmpty).length,
-                  itemBuilder: (context, index) {
-                    final validTimes = _buttonTimes.where((time) => time.isNotEmpty).toList();
-                    final time = validTimes[index];
-                    final buttonIndex = _buttonTimes.indexOf(time);
+              flex: 3,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Card(
+                      margin: EdgeInsets.all(8),
+                      elevation: 2,
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        itemCount: _buttonTimes.where((time) => time.isNotEmpty).length,
+                        itemBuilder: (context, index) {
+                          final validTimes = _buttonTimes.where((time) => time.isNotEmpty).toList();
+                          final time = validTimes[index];
+                          final buttonIndex = _buttonTimes.indexOf(time);
 
-                    return Card(
-                      elevation: 1,
-                      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Rail Loaded ${buttonIndex + 1}',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.black54,
+                          return Card(
+                            elevation: 1,
+                            margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      getButtonName(buttonIndex),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    formatTime(time),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      fontFamily: 'Monospace',
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            Text(
-                              formatTime(time),
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Monospace',
-                              ),
-                            ),
-                          ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  // Submit button at bottom of left panel
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton.icon(
+                        onPressed: _submitData,
+                        icon: Icon(Icons.save),
+                        label: Text(
+                          'Submit',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
               ),
             ),
 
             // Right side - Buttons
             Expanded(
-              flex: 1,
+              flex: 2,
               child: Card(
                 margin: EdgeInsets.all(8),
                 elevation: 2,
@@ -397,11 +449,17 @@ class _NewDataScreenState extends State<NewDataScreen> {
                         ),
                         minimumSize: Size(double.infinity, 60),
                       ),
-                      child: Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          getButtonName(index),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     );
@@ -411,12 +469,6 @@ class _NewDataScreenState extends State<NewDataScreen> {
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _submitData,
-        icon: Icon(Icons.save),
-        label: Text('Submit'),
-        tooltip: 'Submit Data',
       ),
     );
   }
@@ -665,6 +717,27 @@ class DetailsScreen extends StatelessWidget {
     required this.buttonTimes,
   });
 
+  String getButtonName(int index) {
+    switch (index) {
+      case 0: return 'Block Permitted';
+      case 1: return 'T/409';
+      case 2: return 'Dep';
+      case 3: return 'Arr/site';
+      case 4: return 'New Panel Load';
+      case 5: return 'm/c reach cut';
+      case 6: return 'Rail last laid';
+      case 7: return 'Rail fish plate';
+      case 8: return 'Old Slp. removed';
+      case 9: return 'm/c backward';
+      case 10: return 'Plough down & NT';
+      case 11: return 'Sled U&H&Locked';
+      case 12: return 'Slp. Laying Start';
+      case 13: return 'Last Slp. Dropped';
+      case 14: return 'Work close';
+      default: return '';
+    }
+  }
+
   String formatDateTime(String timestamp) {
     final dateTime = DateTime.parse(timestamp);
     return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
@@ -676,6 +749,22 @@ class DetailsScreen extends StatelessWidget {
       return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
     } catch (e) {
       return time;
+    }
+  }
+
+  String calculateDuration(String time1, String time2) {
+    try {
+      final dateTime1 = DateTime.parse(time1);
+      final dateTime2 = DateTime.parse(time2);
+      final difference = dateTime2.difference(dateTime1);
+
+      final hours = difference.inHours;
+      final minutes = difference.inMinutes.remainder(60);
+      final seconds = difference.inSeconds.remainder(60);
+
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return 'N/A';
     }
   }
 
@@ -691,20 +780,20 @@ class DetailsScreen extends StatelessWidget {
         child: Column(
           children: [
             Container(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12), // Reduced vertical padding
               color: Colors.blue.withOpacity(0.1),
               child: Row(
                 children: [
                   Icon(
                     Icons.calendar_today,
                     color: Colors.blue[700],
-                    size: 24,
+                    size: 20, // Reduced from 24
                   ),
-                  SizedBox(width: 16),
+                  SizedBox(width: 12), // Reduced from 16
                   Text(
                     'Session: ${formatDateTime(timestamp)}',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 14, // Reduced from 16
                       fontWeight: FontWeight.w500,
                       color: Colors.black87,
                     ),
@@ -714,46 +803,45 @@ class DetailsScreen extends StatelessWidget {
             ),
             Expanded(
               child: ListView.builder(
-                padding: EdgeInsets.all(16.0),
+                padding: EdgeInsets.all(12.0), // Reduced from 16
                 itemCount: buttonTimes.length,
                 itemBuilder: (context, index) {
                   return Card(
                     elevation: 1,
-                    margin: EdgeInsets.symmetric(vertical: 4),
+                    margin: EdgeInsets.symmetric(vertical: 3), // Reduced from 4
                     child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // Reduced from 16
                       child: Row(
                         children: [
                           Container(
-                            padding: EdgeInsets.all(8),
+                            padding: EdgeInsets.all(6), // Reduced from 8
                             decoration: BoxDecoration(
                               color: Colors.blue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(6), // Reduced from 8
                             ),
                             child: Icon(
                               Icons.timer,
                               color: Colors.blue[700],
-                              size: 24,
+                              size: 20, // Reduced from 24
                             ),
                           ),
-                          SizedBox(width: 16),
+                          SizedBox(width: 12), // Reduced from 16
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'Rail Loaded ${index + 1}',
+                                  getButtonName(index),
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 14, // Reduced from 16
                                     fontWeight: FontWeight.w400,
                                     color: Colors.black38,
                                   ),
                                 ),
-                                SizedBox(height: 4),
                                 Text(
                                   formatTime(buttonTimes[index]),
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 14, // Reduced from 16
                                     fontWeight: FontWeight.w500,
                                     color: Colors.black87,
                                     fontFamily: 'Monospace',
