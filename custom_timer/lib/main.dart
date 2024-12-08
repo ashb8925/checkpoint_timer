@@ -91,6 +91,13 @@ class _MainScreenState extends State<MainScreen> {
     _saveData();
   }
 
+  void _updatePreviousData(List<CheckpointData> updatedData) {
+    setState(() {
+      _previousData = updatedData;
+    });
+    _saveData();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -178,6 +185,7 @@ class _MainScreenState extends State<MainScreen> {
                       MaterialPageRoute(
                         builder: (context) => PreviousDataScreen(
                           previousData: _previousData,
+                          onDataChanged: _updatePreviousData, // Make sure this is passed
                         ),
                       ),
                     );
@@ -271,9 +279,15 @@ class _NewDataScreenState extends State<NewDataScreen> {
     });
   }
 
+  void _saveData() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString('buttonTimes', jsonEncode(_buttonTimes));
+  }
+
   void _deleteTime(int index) {
     setState(() {
       _buttonTimes.removeAt(index);
+      _saveData();
     });
   }
 
@@ -402,29 +416,112 @@ class _NewDataScreenState extends State<NewDataScreen> {
 
 class PreviousDataScreen extends StatefulWidget {
   final List<CheckpointData> previousData;
+  final Function(List<CheckpointData>)? onDataChanged;
 
-  PreviousDataScreen({required this.previousData});
+  PreviousDataScreen({required this.previousData, this.onDataChanged});
 
   @override
   _PreviousDataScreenState createState() => _PreviousDataScreenState();
 }
 
 class _PreviousDataScreenState extends State<PreviousDataScreen> {
+  late List<CheckpointData> _displayData;
+  Set<int> _selectedIndices = {};
+  bool _isSelectionMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Create a mutable copy of the previous data
+    _displayData = List.from(widget.previousData);
+  }
+
   String formatDateTime(String timestamp) {
     final dateTime = DateTime.parse(timestamp);
     return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _toggleSelection(int index) {
+    setState(() {
+      if (_selectedIndices.contains(index)) {
+        _selectedIndices.remove(index);
+      } else {
+        _selectedIndices.add(index);
+      }
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      if (_selectedIndices.length == _displayData.length) {
+        _selectedIndices.clear();
+      } else {
+        _selectedIndices = Set.from(
+            List.generate(_displayData.length, (index) => index)
+        );
+      }
+    });
+  }
+
+  void _deleteSelected() {
+    if (_selectedIndices.isEmpty) return;
+
+    // Store the number of selected items before clearing
+    final deletedCount = _selectedIndices.length;
+
+    // Create a new list without the selected indices
+    final updatedData = List<CheckpointData>.from(_displayData)
+      ..removeWhere((data) =>
+          _selectedIndices.contains(_displayData.indexOf(data))
+      );
+
+    // Ensure onDataChanged is not null before calling
+    if (widget.onDataChanged != null) {
+      widget.onDataChanged!(updatedData);
+    }
+
+    setState(() {
+      _displayData = updatedData;
+      _selectedIndices.clear();
+      _isSelectionMode = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$deletedCount ${deletedCount == 1 ? 'entry' : 'entries'} deleted')),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Previous Data'),
+        title: Text(_isSelectionMode
+            ? '${_selectedIndices.length} Selected'
+            : 'Previous Data'
+        ),
         elevation: 2,
+        actions: _isSelectionMode
+            ? [
+          IconButton(
+            icon: Icon(
+                _selectedIndices.length == _displayData.length
+                    ? Icons.deselect
+                    : Icons.select_all
+            ),
+            onPressed: _selectAll,
+            tooltip: 'Select All',
+          ),
+          IconButton(
+            icon: Icon(Icons.delete, color: Colors.red),
+            onPressed: _deleteSelected,
+            tooltip: 'Delete Selected',
+          ),
+        ]
+            : [],
       ),
       body: Container(
         color: Colors.grey[50],
-        child: widget.previousData.isEmpty
+        child: _displayData.isEmpty
             ? Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -455,14 +552,28 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
         )
             : ListView.builder(
           padding: EdgeInsets.all(16.0),
-          itemCount: widget.previousData.length,
+          itemCount: _displayData.length,
           itemBuilder: (context, index) {
-            final entry = widget.previousData[widget.previousData.length - 1 - index];
+            final entry = _displayData[_displayData.length - 1 - index];
+            final displayIndex = _displayData.length - 1 - index;
+            final isSelected = _selectedIndices.contains(displayIndex);
+
             return Card(
               margin: EdgeInsets.symmetric(vertical: 4),
-              elevation: 1,
+              elevation: isSelected ? 3 : 1,
+              color: isSelected
+                  ? Colors.blue.withOpacity(0.2)
+                  : Colors.white,
               child: InkWell(
-                onTap: () {
+                onLongPress: () {
+                  setState(() {
+                    _isSelectionMode = true;
+                    _toggleSelection(displayIndex);
+                  });
+                },
+                onTap: _isSelectionMode
+                    ? () => _toggleSelection(displayIndex)
+                    : () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -477,6 +588,13 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
                   padding: EdgeInsets.all(16.0),
                   child: Row(
                     children: [
+                      if (_isSelectionMode)
+                        Checkbox(
+                          value: isSelected,
+                          onChanged: (bool? value) {
+                            _toggleSelection(displayIndex);
+                          },
+                        ),
                       Container(
                         padding: EdgeInsets.all(8),
                         decoration: BoxDecoration(
@@ -512,11 +630,12 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
                           ],
                         ),
                       ),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        color: Colors.black45,
-                        size: 16,
-                      ),
+                      if (!_isSelectionMode)
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          color: Colors.black45,
+                          size: 16,
+                        ),
                     ],
                   ),
                 ),
