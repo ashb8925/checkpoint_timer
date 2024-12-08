@@ -258,10 +258,11 @@ class NewDataScreen extends StatefulWidget {
 }
 
 class _NewDataScreenState extends State<NewDataScreen> {
-  List<String> _buttonTimes = [];
+  List<String> _buttonTimes = List.filled(15, '');
   ScrollController _scrollController = ScrollController();
 
   String formatTime(String time) {
+    if (time.isEmpty) return '00:00:00';
     try {
       final dateTime = DateTime.parse(time);
       return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
@@ -270,12 +271,16 @@ class _NewDataScreenState extends State<NewDataScreen> {
     }
   }
 
-  void _recordTime() {
+  void _recordTimeForButton(int index) {
     setState(() {
-      _buttonTimes.add(DateTime.now().toString());
+      _buttonTimes[index] = DateTime.now().toString();
     });
+
+    // Scroll to bottom after a short delay
     Future.delayed(Duration(milliseconds: 100), () {
-      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
     });
   }
 
@@ -284,15 +289,18 @@ class _NewDataScreenState extends State<NewDataScreen> {
     prefs.setString('buttonTimes', jsonEncode(_buttonTimes));
   }
 
-  void _deleteTime(int index) {
+  void _resetButton(int index) {
     setState(() {
-      _buttonTimes.removeAt(index);
-      _saveData();
+      _buttonTimes[index] = '';
     });
+    _saveData();
   }
 
   void _submitData() {
-    widget.onSubmit(_buttonTimes);
+    // Filter out empty times
+    final validTimes = _buttonTimes.where((time) => time.isNotEmpty).toList();
+
+    widget.onSubmit(validTimes);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text("Data Submitted Successfully!"),
     ));
@@ -314,101 +322,101 @@ class _NewDataScreenState extends State<NewDataScreen> {
       ),
       body: Container(
         color: Colors.grey[50],
-        child: Stack(
+        child: Row(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: ListView.builder(
-                      controller: _scrollController,
-                      itemCount: _buttonTimes.length,
-                      itemBuilder: (context, index) {
-                        return Card(
-                          elevation: 1,
-                          margin: EdgeInsets.symmetric(vertical: 4),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.timer,
-                                    color: Colors.blue[700],
-                                    size: 24,
-                                  ),
-                                ),
-                                SizedBox(width: 16),
-                                Expanded(
-                                  child: Row(
-                                    children: [
-                                      Text(
-                                        'Time ${index + 1}',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w400,
-                                          color: Colors.black38,
-                                        ),
-                                      ),
-                                      SizedBox(width: 16),
-                                      Text(
-                                        formatTime(_buttonTimes[index]),
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.black87,
-                                          fontFamily: 'Monospace',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.red[400],
-                                    size: 22,
-                                  ),
-                                  onPressed: () => _deleteTime(index),
-                                  tooltip: 'Delete entry',
-                                ),
-                              ],
+            // Left side - Recorded Times
+            Expanded(
+              flex: 2,
+              child: Card(
+                margin: EdgeInsets.all(8),
+                elevation: 2,
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: _buttonTimes.where((time) => time.isNotEmpty).length,
+                  itemBuilder: (context, index) {
+                    final validTimes = _buttonTimes.where((time) => time.isNotEmpty).toList();
+                    final time = validTimes[index];
+                    final buttonIndex = _buttonTimes.indexOf(time);
+
+                    return Card(
+                      elevation: 1,
+                      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Rail Loaded ${buttonIndex + 1}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.black54,
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  FloatingActionButton.extended(
-                    onPressed: _submitData,
-                    icon: Icon(Icons.save),
-                    label: Text('Submit'),
-                    tooltip: 'Submit Data',
-                  ),
-                ],
+                            Text(
+                              formatTime(time),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Monospace',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: FloatingActionButton(
-                  onPressed: _recordTime,
-                  backgroundColor: Colors.blue,
-                  child: Icon(Icons.timer),
-                  tooltip: 'Record Time',
+
+            // Right side - Buttons
+            Expanded(
+              flex: 1,
+              child: Card(
+                margin: EdgeInsets.all(8),
+                elevation: 2,
+                child: GridView.builder(
+                  padding: EdgeInsets.all(8),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 1,
+                    childAspectRatio: 3,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: 15,
+                  itemBuilder: (context, index) {
+                    final hasTime = _buttonTimes[index].isNotEmpty;
+                    return ElevatedButton(
+                      onPressed: () => _recordTimeForButton(index),
+                      onLongPress: hasTime ? () => _resetButton(index) : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: hasTime ? Colors.green : Colors.blue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        minimumSize: Size(double.infinity, 60),
+                      ),
+                      child: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _submitData,
+        icon: Icon(Icons.save),
+        label: Text('Submit'),
+        tooltip: 'Submit Data',
       ),
     );
   }
@@ -671,22 +679,6 @@ class DetailsScreen extends StatelessWidget {
     }
   }
 
-  String calculateDuration(String time1, String time2) {
-    try {
-      final dateTime1 = DateTime.parse(time1);
-      final dateTime2 = DateTime.parse(time2);
-      final difference = dateTime2.difference(dateTime1);
-
-      final hours = difference.inHours;
-      final minutes = difference.inMinutes.remainder(60);
-      final seconds = difference.inSeconds.remainder(60);
-
-      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return 'N/A';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -725,74 +717,51 @@ class DetailsScreen extends StatelessWidget {
                 padding: EdgeInsets.all(16.0),
                 itemCount: buttonTimes.length,
                 itemBuilder: (context, index) {
-                  final duration = index > 0
-                      ? calculateDuration(buttonTimes[index - 1], buttonTimes[index])
-                      : null;
-
                   return Card(
                     elevation: 1,
                     margin: EdgeInsets.symmetric(vertical: 4),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  Icons.timer,
-                                  color: Colors.blue[700],
-                                  size: 24,
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Checkpoint ${index + 1}',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w400,
-                                        color: Colors.black38,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      formatTime(buttonTimes[index]),
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.black87,
-                                        fontFamily: 'Monospace',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (duration != null) ...[
-                            SizedBox(height: 8),
-                            Padding(
-                              padding: const EdgeInsets.only(left: 56.0),
-                              child: Text(
-                                'Duration from previous: $duration',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black54,
-                                  fontFamily: 'Monospace',
-                                ),
-                              ),
+                          Container(
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                          ],
+                            child: Icon(
+                              Icons.timer,
+                              color: Colors.blue[700],
+                              size: 24,
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Rail Loaded ${index + 1}',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.black38,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  formatTime(buttonTimes[index]),
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black87,
+                                    fontFamily: 'Monospace',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
