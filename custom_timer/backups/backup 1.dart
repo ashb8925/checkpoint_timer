@@ -21,58 +21,24 @@ class MyApp extends StatelessWidget {
   }
 }
 
-
-
 class CheckpointData {
   final String timestamp;
-  final List<ButtonRecord> records;
+  final List<String> times;
 
   CheckpointData({
     required this.timestamp,
-    required this.records,
+    required this.times,
   });
 
   Map<String, dynamic> toJson() => {
     'timestamp': timestamp,
-    'records': records.map((record) => record.toJson()).toList(),
+    'times': times,
   };
 
   factory CheckpointData.fromJson(Map<String, dynamic> json) {
-    // Handle potential null or invalid records array
-    var recordsList = json['records'];
-    List<ButtonRecord> parsedRecords = [];
-
-    if (recordsList != null && recordsList is List) {
-      parsedRecords = recordsList
-          .map((record) => ButtonRecord.fromJson(record as Map<String, dynamic>))
-          .toList();
-    }
-
     return CheckpointData(
-      timestamp: json['timestamp'] as String? ?? DateTime.now().toIso8601String(),
-      records: parsedRecords,
-    );
-  }
-}
-
-class ButtonRecord {
-  final String buttonName;
-  final String time;
-
-  ButtonRecord({
-    required this.buttonName,
-    required this.time,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'buttonName': buttonName,
-    'time': time,
-  };
-
-  factory ButtonRecord.fromJson(Map<String, dynamic> json) {
-    return ButtonRecord(
-      buttonName: json['buttonName'] as String? ?? '',
-      time: json['time'] as String? ?? DateTime.now().toIso8601String(),
+      timestamp: json['timestamp'] as String,
+      times: List<String>.from(json['times']),
     );
   }
 }
@@ -109,14 +75,14 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  void _addNewData(List<ButtonRecord> buttonRecords) {
-    if (buttonRecords.isEmpty) {
+  void _addNewData(List<String> buttonTimes) {
+    if (buttonTimes.isEmpty) {
       return;
     }
 
     final newData = CheckpointData(
       timestamp: DateTime.now().toIso8601String(),
-      records: buttonRecords,
+      times: buttonTimes,
     );
 
     setState(() {
@@ -283,7 +249,7 @@ class _MainScreenState extends State<MainScreen> {
 }
 
 class NewDataScreen extends StatefulWidget {
-  final Function(List<ButtonRecord>) onSubmit;  // Changed from List<String>
+  final Function(List<String>) onSubmit;
 
   NewDataScreen({required this.onSubmit});
 
@@ -307,6 +273,7 @@ class _NewDataScreenState extends State<NewDataScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize with a growable list
     _buttonTimes = List<String>.generate(_buttonNames.length, (_) => '');
   }
 
@@ -322,101 +289,65 @@ class _NewDataScreenState extends State<NewDataScreen> {
 
   void _recordTimeForButton(int index) {
     setState(() {
-      if (_buttonNames[index].contains('Rail Cut Stop')) {
-        _handlePairedButtons(
-            startIndex: index - 1,
-            stopIndex: index,
-            pairType: 'Rail Cut'
-        );
-      } else if (_buttonNames[index].contains('Time Loss Stop')) {
-        _handlePairedButtons(
-            startIndex: index - 1,
-            stopIndex: index,
-            pairType: 'Time Loss'
-        );
+      // Special handling for Rail Cut and Time Loss pairs
+      if (index == 15) { // Rail Cut Start
+        if (_buttonTimes[16].isEmpty) { // Rail Cut Stop is empty
+          _buttonTimes[index] = DateTime.now().toString();
+        } else {
+          // Add a new pair of Rail Cut buttons
+          _addNewPairOfButtons('Rail Cut Start', 'Rail Cut Stop');
+          _buttonTimes[index] = DateTime.now().toString();
+        }
+      } else if (index == 16) { // Rail Cut Stop
+        if (_buttonTimes[15].isEmpty) { // Rail Cut Start is empty
+          _buttonTimes[index] = DateTime.now().toString();
+        } else {
+          // Add a new pair of Rail Cut buttons
+          _addNewPairOfButtons('Rail Cut Start', 'Rail Cut Stop');
+          _buttonTimes[index] = DateTime.now().toString();
+        }
+      } else if (index == 17) { // Time Loss Start
+        if (_buttonTimes[18].isEmpty) { // Time Loss Stop is empty
+          _buttonTimes[index] = DateTime.now().toString();
+        } else {
+          // Add a new pair of Time Loss buttons
+          _addNewPairOfButtons('Time Loss Start', 'Time Loss Stop');
+          _buttonTimes[index] = DateTime.now().toString();
+        }
+      } else if (index == 18) { // Time Loss Stop
+        if (_buttonTimes[17].isEmpty) { // Time Loss Start is empty
+          _buttonTimes[index] = DateTime.now().toString();
+        } else {
+          // Add a new pair of Time Loss buttons
+          _addNewPairOfButtons('Time Loss Start', 'Time Loss Stop');
+          _buttonTimes[index] = DateTime.now().toString();
+        }
+      } else {
+        // Regular button recording
+        _buttonTimes[index] = DateTime.now().toString();
       }
-
-      // Record the time for the current button
-      _buttonTimes[index] = DateTime.now().toString();
     });
 
-    // Scroll to bottom after recording
-    _scrollToBottom();
-  }
-
-  void _handleRailCutPair(int stopIndex) {
-    _handlePairedButtons(
-        startIndex: stopIndex - 1,
-        stopIndex: stopIndex,
-        pairType: 'Rail Cut'
-    );
-  }
-
-  void _handleTimeLossPair(int stopIndex) {
-    _handlePairedButtons(
-        startIndex: stopIndex - 1,
-        stopIndex: stopIndex,
-        pairType: 'Time Loss'
-    );
-  }
-
-  void _handlePairedButtons({
-    required int startIndex,
-    required int stopIndex,
-    required String pairType
-  }) {
-    // Only create new pair if this is the last stop button for this type
-    bool isLastStopButton = !_buttonNames
-        .skip(stopIndex + 1)
-        .any((name) => name.contains('$pairType Stop'));
-
-    if (isLastStopButton) {
-      // Count existing pairs
-      int pairCount = _buttonNames
-          .where((name) => name.contains('$pairType Start') || name.contains('$pairType Stop'))
-          .length ~/ 2;
-
-      // Create new pair names
-      String newStartName = '$pairType Start ${pairCount + 1}';
-      String newStopName = '$pairType Stop ${pairCount + 1}';
-
-      setState(() {
-        // Add new button names
-        _buttonNames.addAll([newStartName, newStopName]);
-        // Add corresponding empty times
-        _buttonTimes.addAll(['', '']);
-      });
-
-      // Scroll to show new buttons
-      _scrollToBottom();
-    }
-  }
-
-  void _addNewPairOfButtons(String pairType) {
-    // Count existing pairs
-    int pairCount = _buttonNames.where((name) =>
-    name.contains('$pairType Start') || name.contains('$pairType Stop')
-    ).length ~/ 2;
-
-    // Create new pair names
-    String newStartName = '$pairType Start ${pairCount + 1}';
-    String newStopName = '$pairType Stop ${pairCount + 1}';
-
-    setState(() {
-      // Add new button names
-      _buttonNames.addAll([newStartName, newStopName]);
-
-      // Add corresponding empty times
-      _buttonTimes.addAll(['', '']);
-    });
-  }
-
-
-  void _scrollToBottom() {
+    // Scroll to bottom after a short delay
     Future.delayed(Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       }
+    });
+  }
+
+  void _addNewPairOfButtons(String startButtonName, String stopButtonName) {
+    // Generate unique names by appending a counter
+    int pairCount = _buttonNames.where((name) =>
+    name.contains(startButtonName) || name.contains(stopButtonName)
+    ).length ~/ 2;
+
+    String newStartName = '$startButtonName ${pairCount + 1}';
+    String newStopName = '$stopButtonName ${pairCount + 1}';
+
+    setState(() {
+      _buttonNames.addAll([newStartName, newStopName]);
+      _buttonTimes.addAll(['', '']);
     });
   }
 
@@ -434,18 +365,10 @@ class _NewDataScreenState extends State<NewDataScreen> {
 
 
   void _submitData() {
-    // Create list of ButtonRecord objects for non-empty times
-    final records = <ButtonRecord>[];
-    for (int i = 0; i < _buttonTimes.length; i++) {
-      if (_buttonTimes[i].isNotEmpty) {
-        records.add(ButtonRecord(
-          buttonName: _buttonNames[i],
-          time: _buttonTimes[i],
-        ));
-      }
-    }
+    // Filter out empty times
+    final validTimes = _buttonTimes.where((time) => time.isNotEmpty).toList();
 
-    widget.onSubmit(records);  // Now matches the expected type
+    widget.onSubmit(validTimes);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text("Data Submitted Successfully!"),
     ));
@@ -632,11 +555,6 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
       } else {
         _selectedIndices.add(index);
       }
-
-      // If no items are selected, exit selection mode
-      if (_selectedIndices.isEmpty) {
-        _isSelectionMode = false;
-      }
     });
   }
 
@@ -644,7 +562,6 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
     setState(() {
       if (_selectedIndices.length == _displayData.length) {
         _selectedIndices.clear();
-        _isSelectionMode = false;
       } else {
         _selectedIndices = Set.from(
             List.generate(_displayData.length, (index) => index)
@@ -661,10 +578,14 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
 
     // Create a new list without the selected indices
     final updatedData = List<CheckpointData>.from(_displayData)
-      ..removeWhere((data) => _selectedIndices.contains(_displayData.indexOf(data)));
+      ..removeWhere((data) =>
+          _selectedIndices.contains(_displayData.indexOf(data))
+      );
 
     // Ensure onDataChanged is not null before calling
-    widget.onDataChanged?.call(updatedData);
+    if (widget.onDataChanged != null) {
+      widget.onDataChanged!(updatedData);
+    }
 
     setState(() {
       _displayData = updatedData;
@@ -685,17 +606,6 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
             ? '${_selectedIndices.length} Selected'
             : 'Previous Data'
         ),
-        leading: _isSelectionMode
-            ? IconButton(
-          icon: Icon(Icons.close),
-          onPressed: () {
-            setState(() {
-              _selectedIndices.clear();
-              _isSelectionMode = false;
-            });
-          },
-        )
-            : null,
         elevation: 2,
         actions: _isSelectionMode
             ? [
@@ -776,7 +686,7 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
                     MaterialPageRoute(
                       builder: (context) => DetailsScreen(
                         timestamp: entry.timestamp,
-                        records: entry.records,
+                        buttonTimes: entry.times,
                       ),
                     ),
                   );
@@ -819,7 +729,7 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
                             ),
                             SizedBox(height: 4),
                             Text(
-                              '${entry.records.length} checkpoints',
+                              '${entry.times.length} checkpoints',
                               style: TextStyle(
                                 color: Colors.black54,
                               ),
@@ -847,12 +757,39 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
 
 class DetailsScreen extends StatelessWidget {
   final String timestamp;
-  final List<ButtonRecord> records;
+  final List<String> buttonTimes;
 
   DetailsScreen({
     required this.timestamp,
-    required this.records,
+    required this.buttonTimes,
   });
+
+
+  String getButtonName(int index) {
+    switch (index) {
+      case 0: return 'Block Permitted';
+      case 1: return 'T/409';
+      case 2: return 'Dep';
+      case 3: return 'Arr/site';
+      case 4: return 'New Panel Load';
+      case 5: return 'm/c reach cut';
+      case 6: return 'Rail last laid';
+      case 7: return 'Rail fish plate';
+      case 8: return 'Old Slp. removed';
+      case 9: return 'm/c backward';
+      case 10: return 'Plough down & NT';
+      case 11: return 'Sled U&H&Locked';
+      case 12: return 'Slp. Laying Start';
+      case 13: return 'Last Slp. Dropped';
+      case 14: return 'Work close';
+    // New buttons
+      case 15: return 'Rail Cut Start';
+      case 16: return 'Rail Cut Stop';
+      case 17: return 'Time Loss Start';
+      case 18: return 'Time Loss Stop';
+      default: return '';
+    }
+  }
 
   String formatDateTime(String timestamp) {
     final dateTime = DateTime.parse(timestamp);
@@ -868,11 +805,11 @@ class DetailsScreen extends StatelessWidget {
     }
   }
 
-  String calculateDuration(String startTime, String endTime) {
+  String calculateDuration(String time1, String time2) {
     try {
-      final start = DateTime.parse(startTime);
-      final end = DateTime.parse(endTime);
-      final difference = end.difference(start);
+      final dateTime1 = DateTime.parse(time1);
+      final dateTime2 = DateTime.parse(time2);
+      final difference = dateTime2.difference(dateTime1);
 
       final hours = difference.inHours;
       final minutes = difference.inMinutes.remainder(60);
@@ -882,87 +819,6 @@ class DetailsScreen extends StatelessWidget {
     } catch (e) {
       return 'N/A';
     }
-  }
-
-  Widget _buildTimeCard(ButtonRecord record, {String? duration}) {
-    return Card(
-      elevation: 1,
-      margin: EdgeInsets.symmetric(vertical: 3),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    Icons.timer,
-                    color: Colors.blue[700],
-                    size: 20,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          record.buttonName,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        formatTime(record.time),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black87,
-                          fontFamily: 'Monospace',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (duration != null) ...[
-              SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    'Duration: ',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  Text(
-                    duration,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black54,
-                      fontFamily: 'Monospace',
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -977,20 +833,20 @@ class DetailsScreen extends StatelessWidget {
         child: Column(
           children: [
             Container(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12), // Reduced vertical padding
               color: Colors.blue.withOpacity(0.1),
               child: Row(
                 children: [
                   Icon(
                     Icons.calendar_today,
                     color: Colors.blue[700],
-                    size: 20,
+                    size: 20, // Reduced from 24
                   ),
-                  SizedBox(width: 12),
+                  SizedBox(width: 12), // Reduced from 16
                   Text(
                     'Session: ${formatDateTime(timestamp)}',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 14, // Reduced from 16
                       fontWeight: FontWeight.w500,
                       color: Colors.black87,
                     ),
@@ -1000,27 +856,57 @@ class DetailsScreen extends StatelessWidget {
             ),
             Expanded(
               child: ListView.builder(
-                padding: EdgeInsets.all(12.0),
-                itemCount: records.length,
+                padding: EdgeInsets.all(12.0), // Reduced from 16
+                itemCount: buttonTimes.length,
                 itemBuilder: (context, index) {
-                  final record = records[index];
-                  String? duration;
-
-                  // Calculate duration for Stop buttons
-                  if (record.buttonName.contains('Stop')) {
-                    // Find the matching Start button
-                    final startButtonName = record.buttonName.replaceAll('Stop', 'Start');
-                    final startRecord = records.firstWhere(
-                          (r) => r.buttonName == startButtonName,
-                      orElse: () => ButtonRecord(buttonName: '', time: ''),
-                    );
-
-                    if (startRecord.buttonName.isNotEmpty) {
-                      duration = calculateDuration(startRecord.time, record.time);
-                    }
-                  }
-
-                  return _buildTimeCard(record, duration: duration);
+                  return Card(
+                    elevation: 1,
+                    margin: EdgeInsets.symmetric(vertical: 3), // Reduced from 4
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // Reduced from 16
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(6), // Reduced from 8
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6), // Reduced from 8
+                            ),
+                            child: Icon(
+                              Icons.timer,
+                              color: Colors.blue[700],
+                              size: 20, // Reduced from 24
+                            ),
+                          ),
+                          SizedBox(width: 12), // Reduced from 16
+                          Expanded(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  getButtonName(index),
+                                  style: TextStyle(
+                                    fontSize: 14, // Reduced from 16
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.black38,
+                                  ),
+                                ),
+                                Text(
+                                  formatTime(buttonTimes[index]),
+                                  style: TextStyle(
+                                    fontSize: 14, // Reduced from 16
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black87,
+                                    fontFamily: 'Monospace',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
                 },
               ),
             ),

@@ -21,40 +21,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-
-
-class CheckpointData {
-  final String timestamp;
-  final List<ButtonRecord> records;
-
-  CheckpointData({
-    required this.timestamp,
-    required this.records,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'timestamp': timestamp,
-    'records': records.map((record) => record.toJson()).toList(),
-  };
-
-  factory CheckpointData.fromJson(Map<String, dynamic> json) {
-    // Handle potential null or invalid records array
-    var recordsList = json['records'];
-    List<ButtonRecord> parsedRecords = [];
-
-    if (recordsList != null && recordsList is List) {
-      parsedRecords = recordsList
-          .map((record) => ButtonRecord.fromJson(record as Map<String, dynamic>))
-          .toList();
-    }
-
-    return CheckpointData(
-      timestamp: json['timestamp'] as String? ?? DateTime.now().toIso8601String(),
-      records: parsedRecords,
-    );
-  }
-}
-
 class ButtonRecord {
   final String buttonName;
   final String time;
@@ -71,8 +37,30 @@ class ButtonRecord {
 
   factory ButtonRecord.fromJson(Map<String, dynamic> json) {
     return ButtonRecord(
-      buttonName: json['buttonName'] as String? ?? '',
-      time: json['time'] as String? ?? DateTime.now().toIso8601String(),
+      buttonName: json['buttonName'] as String,
+      time: json['time'] as String,
+    );
+  }
+}
+
+class CheckpointData {
+  final String timestamp;
+  final List<String> times;
+
+  CheckpointData({
+    required this.timestamp,
+    required this.times,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'timestamp': timestamp,
+    'times': times,
+  };
+
+  factory CheckpointData.fromJson(Map<String, dynamic> json) {
+    return CheckpointData(
+      timestamp: json['timestamp'] as String,
+      times: List<String>.from(json['times']),
     );
   }
 }
@@ -109,14 +97,14 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  void _addNewData(List<ButtonRecord> buttonRecords) {
-    if (buttonRecords.isEmpty) {
+  void _addNewData(List<String> buttonTimes) {
+    if (buttonTimes.isEmpty) {
       return;
     }
 
     final newData = CheckpointData(
       timestamp: DateTime.now().toIso8601String(),
-      records: buttonRecords,
+      times: buttonTimes,
     );
 
     setState(() {
@@ -283,7 +271,7 @@ class _MainScreenState extends State<MainScreen> {
 }
 
 class NewDataScreen extends StatefulWidget {
-  final Function(List<ButtonRecord>) onSubmit;  // Changed from List<String>
+  final Function(List<String>) onSubmit;
 
   NewDataScreen({required this.onSubmit});
 
@@ -434,18 +422,10 @@ class _NewDataScreenState extends State<NewDataScreen> {
 
 
   void _submitData() {
-    // Create list of ButtonRecord objects for non-empty times
-    final records = <ButtonRecord>[];
-    for (int i = 0; i < _buttonTimes.length; i++) {
-      if (_buttonTimes[i].isNotEmpty) {
-        records.add(ButtonRecord(
-          buttonName: _buttonNames[i],
-          time: _buttonTimes[i],
-        ));
-      }
-    }
+    // Filter out empty times
+    final validTimes = _buttonTimes.where((time) => time.isNotEmpty).toList();
 
-    widget.onSubmit(records);  // Now matches the expected type
+    widget.onSubmit(validTimes);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text("Data Submitted Successfully!"),
     ));
@@ -632,11 +612,6 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
       } else {
         _selectedIndices.add(index);
       }
-
-      // If no items are selected, exit selection mode
-      if (_selectedIndices.isEmpty) {
-        _isSelectionMode = false;
-      }
     });
   }
 
@@ -644,7 +619,6 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
     setState(() {
       if (_selectedIndices.length == _displayData.length) {
         _selectedIndices.clear();
-        _isSelectionMode = false;
       } else {
         _selectedIndices = Set.from(
             List.generate(_displayData.length, (index) => index)
@@ -661,10 +635,14 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
 
     // Create a new list without the selected indices
     final updatedData = List<CheckpointData>.from(_displayData)
-      ..removeWhere((data) => _selectedIndices.contains(_displayData.indexOf(data)));
+      ..removeWhere((data) =>
+          _selectedIndices.contains(_displayData.indexOf(data))
+      );
 
     // Ensure onDataChanged is not null before calling
-    widget.onDataChanged?.call(updatedData);
+    if (widget.onDataChanged != null) {
+      widget.onDataChanged!(updatedData);
+    }
 
     setState(() {
       _displayData = updatedData;
@@ -685,17 +663,6 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
             ? '${_selectedIndices.length} Selected'
             : 'Previous Data'
         ),
-        leading: _isSelectionMode
-            ? IconButton(
-          icon: Icon(Icons.close),
-          onPressed: () {
-            setState(() {
-              _selectedIndices.clear();
-              _isSelectionMode = false;
-            });
-          },
-        )
-            : null,
         elevation: 2,
         actions: _isSelectionMode
             ? [
@@ -776,7 +743,7 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
                     MaterialPageRoute(
                       builder: (context) => DetailsScreen(
                         timestamp: entry.timestamp,
-                        records: entry.records,
+                        buttonTimes: entry.times,
                       ),
                     ),
                   );
@@ -819,7 +786,7 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
                             ),
                             SizedBox(height: 4),
                             Text(
-                              '${entry.records.length} checkpoints',
+                              '${entry.times.length} checkpoints',
                               style: TextStyle(
                                 color: Colors.black54,
                               ),
@@ -847,13 +814,80 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
 
 class DetailsScreen extends StatelessWidget {
   final String timestamp;
-  final List<ButtonRecord> records;
+  final List<String> buttonTimes;
 
   DetailsScreen({
     required this.timestamp,
-    required this.records,
+    required this.buttonTimes,
   });
 
+  String getButtonName(String time) {
+    // Find the index of this time in buttonTimes
+    final index = buttonTimes.indexOf(time);
+
+    // Static button names
+    final staticButtons = [
+      'Block Permitted', 'T/409', 'Dep', 'Arr/site', 'New Panel Load',
+      'm/c reach cut', 'Rail last laid', 'Rail fish plate', 'Old Slp. removed',
+      'm/c backward', 'Plough down & NT', 'Sled U&H&Locked', 'Slp. Laying Start',
+      'Last Slp. Dropped', 'Work close', 'Rail Cut Start', 'Rail Cut Stop',
+      'Time Loss Start', 'Time Loss Stop'
+    ];
+
+    // Check if this time corresponds to a static button
+    if (index < staticButtons.length) {
+      return staticButtons[index];
+    }
+
+    // For dynamic pairs, calculate which pair number it is
+    // First, count how many pairs of each type we have
+    int railCutPairs = 0;
+    int timeLossPairs = 0;
+    bool isRailCutSection = true;
+    int currentIndex = staticButtons.length;
+
+    while (currentIndex < index) {
+      if (isRailCutSection) {
+        if (currentIndex + 1 < buttonTimes.length &&
+            buttonTimes[currentIndex].isNotEmpty &&
+            buttonTimes[currentIndex + 1].isNotEmpty) {
+          railCutPairs++;
+          currentIndex += 2;
+        } else {
+          isRailCutSection = false;
+        }
+      } else {
+        if (currentIndex + 1 < buttonTimes.length &&
+            buttonTimes[currentIndex].isNotEmpty &&
+            buttonTimes[currentIndex + 1].isNotEmpty) {
+          timeLossPairs++;
+          currentIndex += 2;
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Determine if this is a Rail Cut or Time Loss button
+    int baseIndex = staticButtons.length;
+    int railCutSectionEnd = baseIndex + (railCutPairs * 2);
+
+    if (index < railCutSectionEnd) {
+      // This is a Rail Cut button
+      int pairNumber = ((index - baseIndex) ~/ 2) + 2;
+      return (index - baseIndex) % 2 == 0
+          ? 'Rail Cut Start $pairNumber'
+          : 'Rail Cut Stop $pairNumber';
+    } else {
+      // This is a Time Loss button
+      int pairNumber = ((index - railCutSectionEnd) ~/ 2) + 2;
+      return (index - railCutSectionEnd) % 2 == 0
+          ? 'Time Loss Start $pairNumber'
+          : 'Time Loss Stop $pairNumber';
+    }
+  }
+
+  // Rest of the DetailsScreen implementation remains the same...
   String formatDateTime(String timestamp) {
     final dateTime = DateTime.parse(timestamp);
     return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
@@ -884,7 +918,7 @@ class DetailsScreen extends StatelessWidget {
     }
   }
 
-  Widget _buildTimeCard(ButtonRecord record, {String? duration}) {
+  Widget _buildTimeCard(String buttonName, String time, {String? duration}) {
     return Card(
       elevation: 1,
       margin: EdgeInsets.symmetric(vertical: 3),
@@ -913,7 +947,7 @@ class DetailsScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          record.buttonName,
+                          buttonName,
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w400,
@@ -922,7 +956,7 @@ class DetailsScreen extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        formatTime(record.time),
+                        formatTime(time),
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -1001,26 +1035,22 @@ class DetailsScreen extends StatelessWidget {
             Expanded(
               child: ListView.builder(
                 padding: EdgeInsets.all(12.0),
-                itemCount: records.length,
+                itemCount: buttonTimes.length,
                 itemBuilder: (context, index) {
-                  final record = records[index];
+                  final time = buttonTimes[index];
+                  final buttonName = getButtonName(time);
+
+                  // Calculate duration for paired buttons
                   String? duration;
-
-                  // Calculate duration for Stop buttons
-                  if (record.buttonName.contains('Stop')) {
-                    // Find the matching Start button
-                    final startButtonName = record.buttonName.replaceAll('Stop', 'Start');
-                    final startRecord = records.firstWhere(
-                          (r) => r.buttonName == startButtonName,
-                      orElse: () => ButtonRecord(buttonName: '', time: ''),
-                    );
-
-                    if (startRecord.buttonName.isNotEmpty) {
-                      duration = calculateDuration(startRecord.time, record.time);
+                  if (buttonName.contains('Stop')) {
+                    final startIndex = index - 1;
+                    if (startIndex >= 0) {
+                      final startTime = buttonTimes[startIndex];
+                      duration = calculateDuration(startTime, time);
                     }
                   }
 
-                  return _buildTimeCard(record, duration: duration);
+                  return _buildTimeCard(buttonName, time, duration: duration);
                 },
               ),
             ),
