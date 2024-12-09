@@ -505,7 +505,7 @@ class _NewDataScreenState extends State<NewDataScreen> {
                                     child: Text(
                                       _buttonNames[buttonIndex],
                                       style: TextStyle(
-                                        fontSize: 15, // Increased from 14
+                                        fontSize: 13, // Reduced from 15
                                         color: Colors.black54,
                                       ),
                                     ),
@@ -513,7 +513,7 @@ class _NewDataScreenState extends State<NewDataScreen> {
                                   Text(
                                     formatTime(time),
                                     style: TextStyle(
-                                      fontSize: 15, // Increased from 14
+                                      fontSize: 13, // Reduced from 15
                                       fontWeight: FontWeight.bold,
                                       fontFamily: 'Monospace',
                                     ),
