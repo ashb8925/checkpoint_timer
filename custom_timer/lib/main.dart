@@ -283,7 +283,7 @@ class _MainScreenState extends State<MainScreen> {
 }
 
 class NewDataScreen extends StatefulWidget {
-  final Function(List<ButtonRecord>) onSubmit;  // Changed from List<String>
+  final Function(List<ButtonRecord>) onSubmit;
 
   NewDataScreen({required this.onSubmit});
 
@@ -294,10 +294,10 @@ class NewDataScreen extends StatefulWidget {
 class _NewDataScreenState extends State<NewDataScreen> {
   List<String> _buttonTimes = [];
   List<String> _buttonNames = [
-    'Block Permitted', 'T/409', 'Dep', 'Arr/site', 'New Panel Load',
-    'm/c reach cut', 'Rail last laid', 'Rail fish plate', 'Old Slp. removed',
-    'm/c backward', 'Plough down & NT', 'Sled U&H&Locked', 'Slp. Laying Start',
-    'Last Slp. Dropped', 'Work close',
+    'Block Permitted', 'T/409', 'Dep Station', 'Arr/Site', 'Dep Site', 'Arr/Station', 'New Panel Load',
+    'M/C Reach Cut', 'Rail last laid', 'Rail Fish Plate', 'Old Slp.Removed',
+    'M/C backward', 'Plough down & NT', 'Sled U&H&Locked', 'Slp.Laying Start',
+    'Last Slp.Dropped', 'Work Close',
     'Rail Cut Start', 'Rail Cut Stop',
     'Time Loss Start', 'Time Loss Stop'
   ];
@@ -321,27 +321,30 @@ class _NewDataScreenState extends State<NewDataScreen> {
   }
 
   void _recordTimeForButton(int index) {
-    setState(() {
-      if (_buttonNames[index].contains('Rail Cut Stop')) {
-        _handlePairedButtons(
-            startIndex: index - 1,
-            stopIndex: index,
-            pairType: 'Rail Cut'
-        );
-      } else if (_buttonNames[index].contains('Time Loss Stop')) {
-        _handlePairedButtons(
-            startIndex: index - 1,
-            stopIndex: index,
-            pairType: 'Time Loss'
-        );
-      }
+    // Only record time if the button is not already active (green)
+    if (_buttonTimes[index].isEmpty) {
+      setState(() {
+        if (_buttonNames[index].contains('Rail Cut Stop')) {
+          _handlePairedButtons(
+              startIndex: index - 1,
+              stopIndex: index,
+              pairType: 'Rail Cut'
+          );
+        } else if (_buttonNames[index].contains('Time Loss Stop')) {
+          _handlePairedButtons(
+              startIndex: index - 1,
+              stopIndex: index,
+              pairType: 'Time Loss'
+          );
+        }
 
-      // Record the time for the current button
-      _buttonTimes[index] = DateTime.now().toString();
-    });
+        // Record the time for the current button
+        _buttonTimes[index] = DateTime.now().toString();
+      });
 
-    // Scroll to bottom after recording
-    _scrollToBottom();
+      // Scroll to bottom after recording
+      _scrollToBottom();
+    }
   }
 
   void _handleRailCutPair(int stopIndex) {
@@ -405,12 +408,10 @@ class _NewDataScreenState extends State<NewDataScreen> {
     setState(() {
       // Add new button names
       _buttonNames.addAll([newStartName, newStopName]);
-
       // Add corresponding empty times
       _buttonTimes.addAll(['', '']);
     });
   }
-
 
   void _scrollToBottom() {
     Future.delayed(Duration(milliseconds: 100), () {
@@ -431,8 +432,6 @@ class _NewDataScreenState extends State<NewDataScreen> {
     prefs.setString('buttonTimes', jsonEncode(_buttonTimes));
   }
 
-
-
   void _submitData() {
     // Create list of ButtonRecord objects for non-empty times
     final records = <ButtonRecord>[];
@@ -445,7 +444,7 @@ class _NewDataScreenState extends State<NewDataScreen> {
       }
     }
 
-    widget.onSubmit(records);  // Now matches the expected type
+    widget.onSubmit(records);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text("Data Submitted Successfully!"),
     ));
@@ -456,6 +455,13 @@ class _NewDataScreenState extends State<NewDataScreen> {
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  List<MapEntry<int, String>> _getSortedTimeEntries() {
+    return _buttonTimes.asMap().entries
+        .where((entry) => entry.value.isNotEmpty)
+        .toList()
+      ..sort((a, b) => DateTime.parse(a.value).compareTo(DateTime.parse(b.value)));
   }
 
   @override
@@ -482,9 +488,10 @@ class _NewDataScreenState extends State<NewDataScreen> {
                         controller: _scrollController,
                         itemCount: _buttonTimes.where((time) => time.isNotEmpty).length,
                         itemBuilder: (context, index) {
-                          final validTimes = _buttonTimes.where((time) => time.isNotEmpty).toList();
-                          final time = validTimes[index];
-                          final buttonIndex = _buttonTimes.indexOf(time);
+                          final sortedEntries = _getSortedTimeEntries();
+                          final entry = sortedEntries[index];
+                          final buttonIndex = entry.key;
+                          final time = entry.value;
 
                           return Card(
                             elevation: 1,
@@ -498,7 +505,7 @@ class _NewDataScreenState extends State<NewDataScreen> {
                                     child: Text(
                                       _buttonNames[buttonIndex],
                                       style: TextStyle(
-                                        fontSize: 14,
+                                        fontSize: 15, // Increased from 14
                                         color: Colors.black54,
                                       ),
                                     ),
@@ -506,7 +513,7 @@ class _NewDataScreenState extends State<NewDataScreen> {
                                   Text(
                                     formatTime(time),
                                     style: TextStyle(
-                                      fontSize: 14,
+                                      fontSize: 15, // Increased from 14
                                       fontWeight: FontWeight.bold,
                                       fontFamily: 'Monospace',
                                     ),
@@ -519,7 +526,6 @@ class _NewDataScreenState extends State<NewDataScreen> {
                       ),
                     ),
                   ),
-                  // Submit button at bottom of left panel
                   Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: SizedBox(
@@ -572,13 +578,14 @@ class _NewDataScreenState extends State<NewDataScreen> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         minimumSize: Size(double.infinity, 60),
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Reduced padding
                       ),
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
                           _buttonNames[index],
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 15, // Increased from 13
                             fontWeight: FontWeight.w500,
                           ),
                           textAlign: TextAlign.center,
@@ -845,7 +852,8 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
   }
 }
 
-class DetailsScreen extends StatelessWidget {
+// Updated DetailsScreen with sorting options:
+class DetailsScreen extends StatefulWidget {
   final String timestamp;
   final List<ButtonRecord> records;
 
@@ -853,6 +861,45 @@ class DetailsScreen extends StatelessWidget {
     required this.timestamp,
     required this.records,
   });
+
+  @override
+  _DetailsScreenState createState() => _DetailsScreenState();
+}
+
+enum SortOption {
+  time,
+  name,
+  original
+}
+
+class _DetailsScreenState extends State<DetailsScreen> {
+  late List<ButtonRecord> _sortedRecords;
+  SortOption _currentSort = SortOption.time;
+
+  @override
+  void initState() {
+    super.initState();
+    _sortedRecords = List.from(widget.records);
+    _sortRecords();
+  }
+
+  void _sortRecords() {
+    setState(() {
+      switch (_currentSort) {
+        case SortOption.time:
+          _sortedRecords.sort((a, b) =>
+              DateTime.parse(a.time).compareTo(DateTime.parse(b.time))
+          );
+          break;
+        case SortOption.name:
+          _sortedRecords.sort((a, b) => a.buttonName.compareTo(b.buttonName));
+          break;
+        case SortOption.original:
+          _sortedRecords = List.from(widget.records);
+          break;
+      }
+    });
+  }
 
   String formatDateTime(String timestamp) {
     final dateTime = DateTime.parse(timestamp);
@@ -971,6 +1018,58 @@ class DetailsScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text('Checkpoint Details'),
         elevation: 2,
+        actions: [
+          PopupMenuButton<SortOption>(
+            icon: Icon(Icons.sort),
+            onSelected: (SortOption option) {
+              setState(() {
+                _currentSort = option;
+                _sortRecords();
+              });
+            },
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem(
+                value: SortOption.time,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.access_time,
+                      color: _currentSort == SortOption.time ? Colors.blue : null,
+                    ),
+                    SizedBox(width: 8),
+                    Text('Sort by Time'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: SortOption.name,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.sort_by_alpha,
+                      color: _currentSort == SortOption.name ? Colors.blue : null,
+                    ),
+                    SizedBox(width: 8),
+                    Text('Sort by Name'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: SortOption.original,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.format_list_numbered,
+                      color: _currentSort == SortOption.original ? Colors.blue : null,
+                    ),
+                    SizedBox(width: 8),
+                    Text('Original Order'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Container(
         color: Colors.grey[50],
@@ -988,7 +1087,7 @@ class DetailsScreen extends StatelessWidget {
                   ),
                   SizedBox(width: 12),
                   Text(
-                    'Session: ${formatDateTime(timestamp)}',
+                    'Session: ${formatDateTime(widget.timestamp)}',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -1001,16 +1100,16 @@ class DetailsScreen extends StatelessWidget {
             Expanded(
               child: ListView.builder(
                 padding: EdgeInsets.all(12.0),
-                itemCount: records.length,
+                itemCount: _sortedRecords.length,
                 itemBuilder: (context, index) {
-                  final record = records[index];
+                  final record = _sortedRecords[index];
                   String? duration;
 
                   // Calculate duration for Stop buttons
                   if (record.buttonName.contains('Stop')) {
                     // Find the matching Start button
                     final startButtonName = record.buttonName.replaceAll('Stop', 'Start');
-                    final startRecord = records.firstWhere(
+                    final startRecord = _sortedRecords.firstWhere(
                           (r) => r.buttonName == startButtonName,
                       orElse: () => ButtonRecord(buttonName: '', time: ''),
                     );
