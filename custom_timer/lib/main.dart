@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:date_time_picker/date_time_picker.dart';
 
 void main() {
   runApp(MyApp());
@@ -464,6 +465,127 @@ class _NewDataScreenState extends State<NewDataScreen> {
       ..sort((a, b) => DateTime.parse(a.value).compareTo(DateTime.parse(b.value)));
   }
 
+  void _editTime(int buttonIndex) {
+    final TextEditingController timeController = TextEditingController(
+      text: _buttonTimes[buttonIndex].isNotEmpty
+          ? formatTimeForEditing(DateTime.parse(_buttonTimes[buttonIndex]))
+          : '',
+    );
+
+    // Add listener for autocompletion
+    timeController.addListener(() {
+      String text = timeController.text;
+
+      // Auto-add colons and limit input
+      if (text.isNotEmpty) {
+        // Remove any non-digit characters
+        text = text.replaceAll(RegExp(r'[^0-9]'), '');
+
+        // Limit to 6 digits
+        if (text.length > 6) {
+          text = text.substring(0, 6);
+        }
+
+        // Format with colons
+        if (text.length > 2) {
+          text = '${text.substring(0, 2)}:${text.substring(2)}';
+        }
+        if (text.length > 5) {
+          text = '${text.substring(0, 5)}:${text.substring(5)}';
+        }
+
+        // Update controller if changed
+        if (timeController.text != text) {
+          timeController.value = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: text.length),
+          );
+        }
+      }
+    });
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Edit Time for ${_buttonNames[buttonIndex]}'),
+          content: TextField(
+            controller: timeController,
+            decoration: InputDecoration(
+              hintText: 'Enter time (HH:MM:SS)',
+              labelText: 'Time',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,  // Changed to number for better mobile input
+            maxLength: 8,  // Limit to 8 characters including colons
+          ),
+          actions: [
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            ElevatedButton(
+              child: Text('Save'),
+              onPressed: () {
+                // Validate and parse the time
+                try {
+                  final parts = timeController.text.split(':');
+                  if (parts.length != 3) {
+                    throw FormatException();
+                  }
+
+                  final hours = int.parse(parts[0]);
+                  final minutes = int.parse(parts[1]);
+                  final seconds = int.parse(parts[2]);
+
+                  // Validate time ranges
+                  if (hours > 23 || minutes > 59 || seconds > 59) {
+                    throw FormatException();
+                  }
+
+                  // Use the original date, just update the time
+                  DateTime originalDateTime = _buttonTimes[buttonIndex].isNotEmpty
+                      ? DateTime.parse(_buttonTimes[buttonIndex])
+                      : DateTime.now();
+
+                  final newDateTime = DateTime(
+                    originalDateTime.year,
+                    originalDateTime.month,
+                    originalDateTime.day,
+                    hours,
+                    minutes,
+                    seconds,
+                  );
+
+                  setState(() {
+                    _buttonTimes[buttonIndex] = newDateTime.toString();
+                  });
+
+                  Navigator.of(context).pop();
+                } catch (e) {
+                  // Show error if time format is invalid
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Invalid time format. Use HH:MM:SS (00-23:00-59:00-59)'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+// Helper method to format time for editing
+  String formatTimeForEditing(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:'
+        '${dateTime.minute.toString().padLeft(2, '0')}:'
+        '${dateTime.second.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -505,7 +627,7 @@ class _NewDataScreenState extends State<NewDataScreen> {
                                     child: Text(
                                       _buttonNames[buttonIndex],
                                       style: TextStyle(
-                                        fontSize: 13, // Reduced from 15
+                                        fontSize: 13,
                                         color: Colors.black54,
                                       ),
                                     ),
@@ -513,10 +635,14 @@ class _NewDataScreenState extends State<NewDataScreen> {
                                   Text(
                                     formatTime(time),
                                     style: TextStyle(
-                                      fontSize: 13, // Reduced from 15
+                                      fontSize: 13,
                                       fontWeight: FontWeight.bold,
                                       fontFamily: 'Monospace',
                                     ),
+                                  ),
+                                  IconButton(
+                                    icon: Icon(Icons.edit, size: 18, color: Colors.blue),
+                                    onPressed: () => _editTime(buttonIndex),
                                   ),
                                 ],
                               ),
