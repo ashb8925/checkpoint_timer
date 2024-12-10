@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:date_time_picker/date_time_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 
 void main() {
   runApp(MyApp());
@@ -749,14 +753,198 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
   @override
   void initState() {
     super.initState();
-    // Create a mutable copy of the previous data
     _displayData = List.from(widget.previousData);
+  }
+
+  String _formatDataAsText() {
+    final buffer = StringBuffer();
+    buffer.writeln('Checkpoint Data Export');
+    buffer.writeln('Generated: ${DateTime.now().toString()}\n');
+
+    for (final entry in _displayData) {
+      buffer.writeln('Timestamp: ${formatDateTime(entry.timestamp)}');
+      buffer.writeln('Number of records: ${entry.records.length}');
+
+      for (var i = 0; i < entry.records.length; i++) {
+        final record = entry.records[i];
+        buffer.writeln('  ${i + 1}. ${record.buttonName}');
+        buffer.writeln('     Time: ${formatDateTime(record.time)}');
+      }
+      buffer.writeln('-------------------\n');
+    }
+
+    return buffer.toString();
+  }
+
+  Future<void> _exportData() async {
+    try {
+      final jsonData = _displayData.map((data) => data.toJson()).toList();
+      final jsonString = jsonEncode(jsonData);
+
+      final directory = await getExternalStorageDirectory();
+      if (directory == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to access storage')),
+        );
+        return;
+      }
+
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final file = File('${directory.path}/checkpoint_export_$timestamp.json');
+
+      await file.writeAsString(jsonString);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Data exported to ${file.path}'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _shareData({required bool asText}) async {
+    try {
+      if (asText) {
+        // Share as formatted plain text
+        final textData = _formatDataAsText();
+        await Share.share(
+          textData,
+          subject: 'Checkpoint Data Export',
+        );
+      } else {
+        // Share as JSON file
+        final jsonData = _displayData.map((data) => data.toJson()).toList();
+        final jsonString = jsonEncode(jsonData);
+
+        final directory = await getTemporaryDirectory();
+        final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+        final tempFile = File('${directory.path}/checkpoint_export_$timestamp.json');
+
+        await tempFile.writeAsString(jsonString);
+
+        await Share.shareXFiles(
+          [XFile(tempFile.path)],
+          subject: 'Checkpoint Data Export',
+          text: 'Here is my checkpoint data export.',
+        );
+
+        try {
+          await tempFile.delete();
+        } catch (e) {
+          // Ignore deletion errors
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sharing failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _importData() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.first.path!);
+      final jsonString = await file.readAsString();
+      final jsonData = jsonDecode(jsonString) as List;
+
+      final importedData = jsonData
+          .map((item) => CheckpointData.fromJson(item))
+          .toList();
+
+      // Show confirmation dialog
+      final shouldMerge = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Import Data'),
+          content: Text(
+              'Do you want to merge the imported data (${importedData.length} entries) with existing data or replace it?'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Replace'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('Merge'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldMerge == null) return;
+
+      List<CheckpointData> updatedData;
+      if (shouldMerge) {
+        // When merging, replace existing entries with imported entries that have the same timestamp
+        updatedData = [..._displayData];
+        for (var importedEntry in importedData) {
+          final existingIndex = updatedData.indexWhere(
+                  (existing) => existing.timestamp == importedEntry.timestamp
+          );
+
+          if (existingIndex != -1) {
+            // Replace the existing entry
+            updatedData[existingIndex] = importedEntry;
+          } else {
+            // Add new entry
+            updatedData.add(importedEntry);
+          }
+        }
+
+        // Sort by timestamp
+        updatedData.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      } else {
+        // Replace entire dataset
+        updatedData = importedData;
+      }
+
+      widget.onDataChanged?.call(updatedData);
+
+      setState(() {
+        _displayData = updatedData;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Successfully ${shouldMerge ? 'merged' : 'imported'} ${importedData.length} entries'
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Import failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   String formatDateTime(String timestamp) {
     final dateTime = DateTime.parse(timestamp);
     return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
+
 
   void _toggleSelection(int index) {
     setState(() {
@@ -847,7 +1035,54 @@ class _PreviousDataScreenState extends State<PreviousDataScreen> {
             tooltip: 'Delete Selected',
           ),
         ]
-            : [],
+            : [
+          // Share button with popup menu
+          PopupMenuButton<String>(
+            icon: Icon(Icons.share),
+            tooltip: 'Share Data',
+            onSelected: (value) {
+              if (value == 'text') {
+                _shareData(asText: true);
+              } else {
+                _shareData(asText: false);
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'text',
+                child: Row(
+                  children: [
+                    Icon(Icons.text_fields, size: 20),
+                    SizedBox(width: 8),
+                    Text('Share as Text'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'file',
+                child: Row(
+                  children: [
+                    Icon(Icons.file_present, size: 20),
+                    SizedBox(width: 8),
+                    Text('Share as JSON'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // Export button
+          IconButton(
+            icon: Icon(Icons.upload_file),
+            onPressed: _exportData,
+            tooltip: 'Export Data',
+          ),
+          // Import button
+          IconButton(
+            icon: Icon(Icons.download_rounded),
+            onPressed: _importData,
+            tooltip: 'Import Data',
+          ),
+        ],
       ),
       body: Container(
         color: Colors.grey[50],
